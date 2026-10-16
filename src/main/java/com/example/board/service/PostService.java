@@ -7,8 +7,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class PostService {
@@ -43,6 +46,32 @@ public class PostService {
 
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    /** title 또는 content에 word가 포함된 글 id 목록 */
+    public List<Long> searchIdsByWord(String word) {
+        return repository.findIdsByWord(word);
+    }
+
+    /** 지정한 글들의 title/content에서 before를 after로 변경(검색과 같이 대소문자 무시). 없는 id는 건너뛰고, 변경된 글 수를 반환 */
+    public int replaceWord(List<Long> ids, String before, String after) {
+        Pattern pattern = Pattern.compile(Pattern.quote(before), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        String replacement = Matcher.quoteReplacement(after);
+        int changed = 0;
+        for (Long id : ids) {
+            Optional<Post> found = repository.findById(id);
+            if (found.isEmpty()) {
+                continue;
+            }
+            Post post = found.get();
+            Post form = new Post();
+            form.setTitle(pattern.matcher(post.getTitle()).replaceAll(replacement));
+            form.setName(post.getName());
+            form.setContent(pattern.matcher(post.getContent()).replaceAll(replacement));
+            update(id, form);
+            changed++;
+        }
+        return changed;
     }
 
     public Optional<Post> findLatest() {
